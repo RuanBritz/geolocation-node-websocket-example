@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css">
+</head>
+
+<body>
+    <section class="container">
+        <h1>Tracker</h1>
+        <div id="mapcanvas" style="height:50vh;width:100%;"></div>
+        <br/>
+        <button class="waves-effect waves-light btn" id="stop">Stop</button>
+    </section>
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/js/materialize.min.js"></script>
+<script type="text/javascript" src="https://maps.google.com/maps/api/js?sensor=false"></script>
+
+<script>
+
+    $(document).ready(function () {
+        var bounds = new google.maps.LatLngBounds();
+        var map;
+        var watchID;
+        initializeMap();
+
+        // Geolocation stuffs
+        if ("geolocation" in navigator) {
+            watchID = navigator.geolocation.watchPosition(function (position) {
+                sendCoordinates(position.coords.latitude, position.coords.longitude);
+            });
+        } else {
+            alert('Geolocation not available')
+        }
+
+        $('#stop').click(function () {
+            navigator.geolocation.clearWatch(watchID);
+        });
+
+        function sendCoordinates(lat, long) {
+            $.ajax({
+                type: "POST",
+                url: '/logCoordinates',
+                data: {
+                    lat: lat,
+                    long: long
+                }
+            });
+        }
+
+        function initializeMap() {
+
+            var myOptions = {
+                navigationControlOptions: { style: google.maps.NavigationControlStyle.SMALL },
+                mapTypeId: google.maps.MapTypeId.ROADMAP
+            };
+            map = new google.maps.Map(document.getElementById("mapcanvas"), myOptions);
+        }
+
+        function addMarker(location, name) {
+            var marker = new google.maps.Marker({
+                position: location,
+                map: map,
+                title: name
+            });
+        }
+
+        // if user is running mozilla then use it's built-in WebSocket
+        window.WebSocket = window.WebSocket || window.MozWebSocket;
+
+        var connection = new WebSocket("wss://" + location.host);
+
+        connection.onopen = function () {
+            // connection is opened and ready to use
+        };
+
+        connection.onerror = function (error) {
+            // an error occurred when sending/receiving data
+        };
+
+        connection.onmessage = function (response) {
+            // Map stuffs
+            var users = JSON.parse(response.data)
+
+            for (var i = 0; i < users.length; i++) {
+                loc = new google.maps.LatLng(users[i].lat, users[i].long);
+                bounds.extend(loc);
+                addMarker(loc, users[i].ip);
+            }
+
+            map.fitBounds(bounds);
+            map.panToBounds(bounds);
+            console.log(response.data);
+        };
+
+    });
+</script>
+
+</html>
